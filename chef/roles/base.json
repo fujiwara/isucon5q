@@ -8,6 +8,7 @@
   "run_list": [
     "recipe[local-accounts]",
     "recipe[common-packages]",
-    "recipe[sysstat]"
+    "recipe[sysstat]",
+    "recipe[nginx-build]"
   ]
 }
