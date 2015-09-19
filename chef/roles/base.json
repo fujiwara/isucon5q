@@ -7,6 +7,7 @@
   "chef_type": "role",
   "run_list": [
     "recipe[local-accounts]",
-    "recipe[common-packages]"
+    "recipe[common-packages]",
+    "recipe[sysstat]"
   ]
 }
