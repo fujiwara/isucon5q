@@ -1,0 +1,12 @@
+{
+  "name": "base",
+  "override_attributes": {},
+  "default_attributes": {
+  },
+  "json_class": "Chef::Role",
+  "chef_type": "role",
+  "run_list": [
+    "recipe[local-accounts]",
+    "recipe[common-packages]"
+  ]
+}

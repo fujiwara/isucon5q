@@ -1,0 +1,5 @@
+config/self.json
+config/solo.rb
+role/
+data_bags/
+*~
