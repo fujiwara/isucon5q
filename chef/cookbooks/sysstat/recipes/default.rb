@@ -7,7 +7,7 @@
 # All rights reserved - Do Not Redistribute
 #
 
-cookbook_file '/etc/defaults/sysstat' do
+file '/etc/default/sysstat' do
   owner 'root'
   group 'root'
   mode 0644
