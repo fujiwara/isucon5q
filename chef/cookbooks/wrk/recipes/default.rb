@@ -7,7 +7,7 @@
 # All rights reserved - Do Not Redistribute
 #
 
-git '/tmp/wrk'
+git '/tmp/wrk' do
   repository 'https://github.com/wg/wrk.git'
   not_if 'test -e /usr/local/bin/wrk'
   notifies :run, 'bash[install wrk]'
