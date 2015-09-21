@@ -9,6 +9,8 @@
     "recipe[local-accounts]",
     "recipe[common-packages]",
     "recipe[sysstat]",
-    "recipe[nginx-build]"
+    "recipe[nginx-build]",
+    "recipe[wrk]",
+    "recipe[http_load]"
   ]
 }
