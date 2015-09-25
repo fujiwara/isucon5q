@@ -1,0 +1,5 @@
+#!/bin/bash
+
+set -e
+token=xoxp-6075480389-6076196933-11337321462-91af185d4f
+exec nopaste-slack -token $token "$@"
