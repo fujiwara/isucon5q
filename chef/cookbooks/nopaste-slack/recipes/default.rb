@@ -9,18 +9,12 @@
 
 bash "download nopaste-slack" do
   cwd "/tmp"
-  code "gsutil cp gs://isucon5-fujiwaragumi/nopaste-slack /usr/local/bin/nopaste-slack.bin"
+  code "gsutil cp gs://isucon5-fujiwaragumi/nopaste-slack /usr/local/bin/nopaste-slack"
   action :nothing
   not_if "test -e /usr/local/bin/nopaste-slack"
 end
 
-file "/usr/local/bin/nopaste-slack.bin" do
-  owner "root"
-  group "root"
-  mode  "755"
-end
-
-cookbook_file "/usr/local/bin/nopaste-slack" do
+file "/usr/local/bin/nopaste-slack" do
   owner "root"
   group "root"
   mode  "755"
