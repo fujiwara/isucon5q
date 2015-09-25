@@ -22,3 +22,10 @@ file "/home/fujiwara/.screenrc" do
   mode 0644
   content "escape ^z^z\n"
 end
+
+execute "setup GOPATH" do
+  user "fujiwara"
+  cwd "/home/fujiwara"
+  command "echo 'export GOPATH=/home/fujiwara' >> .bash_profile"
+  not_if "grep GOPATH .bash_profile"
+end
