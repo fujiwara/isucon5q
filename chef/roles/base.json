@@ -11,6 +11,7 @@
     "recipe[sysstat]",
     "recipe[nginx-build]",
     "recipe[wrk]",
-    "recipe[http_load]"
+    "recipe[http_load]",
+    "recipe[nopaste-slack]"
   ]
 }
