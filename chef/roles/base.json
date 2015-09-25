@@ -12,6 +12,7 @@
     "recipe[nginx-build]",
     "recipe[wrk]",
     "recipe[http_load]",
-    "recipe[nopaste-slack]"
+    "recipe[nopaste-slack]",
+    "recipe[alp]"
   ]
 }
