@@ -101,7 +101,7 @@ sub current_user {
 
     return undef if (!session()->{user_id});
 
-    $user = db->select_row('SELECT id, account_name, nick_name, email FROM users WHERE id=?', session()->{user_id});
+    $user = json()->decode(redis()->get('user:' . session()->{user_id}));
     if (!$user) {
         session()->{user_id} = undef;
         abort_authentication_error();
@@ -111,7 +111,7 @@ sub current_user {
 
 sub get_user {
     my ($user_id) = @_;
-    my $user = db->select_row('SELECT * FROM users WHERE id = ?', $user_id);
+    my $user = json()->decode(redis()->get('user:' . $user_id));
     abort_content_not_found() if (!$user);
     return $user;
 }
@@ -549,6 +549,15 @@ SQL
                 redis()->lpush($key, json()->encode($comment));
                 redis()->ltrim($key, 0, 9);
             }
+        }
+
+        for my $user (@{db->select_all('SELECT id, account_name, nick_name, email FROM users')}) {
+            my $data = +{
+                account_name => $user->{account_name},
+                nick_name => $user->{nick_name},
+                email => $user->{email},
+            };
+            redis()->set('user:' . $user->{id}, json()->encode($data));
         }
     }
     1;
