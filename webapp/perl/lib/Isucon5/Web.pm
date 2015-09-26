@@ -530,15 +530,6 @@ get '/initialize' => sub {
     db->query("DELETE FROM entries WHERE id > 500000");
     db->query("DELETE FROM comments WHERE id > 1500000");
 
-    for my $user (@{db->select_all('SELECT id, account_name, nick_name, email FROM users')}) {
-        my $data = +{
-            account_name => $user->{account_name},
-            nick_name => $user->{nick_name},
-            email => $user->{email},
-        };
-        redis()->set('user:' . $user->{id}, json()->encode($data));
-    }
-
     if ($c->req->param('redis')) {
         initialize_fp_score_board();
         # cache comments_for_me
@@ -559,6 +550,15 @@ SQL
                 redis()->lpush($key, json()->encode($comment));
                 redis()->ltrim($key, 0, 9);
             }
+        }
+
+        for my $user (@{db->select_all('SELECT id, account_name, nick_name, email FROM users')}) {
+            my $data = +{
+                account_name => $user->{account_name},
+                nick_name => $user->{nick_name},
+                email => $user->{email},
+            };
+            redis()->set('user:' . $user->{id}, json()->encode($data));
         }
     }
     1;
