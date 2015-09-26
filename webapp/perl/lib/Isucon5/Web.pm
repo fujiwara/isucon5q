@@ -213,13 +213,11 @@ SQL
     }
 
     my $entries_of_friends = [];
-    for my $entry (@{db->select_all('SELECT id, user_id, private, title, created_at FROM entries ORDER BY id DESC LIMIT 1000')}) {
-        next if (!is_friend($entry->{user_id}));
+    for my $entry (@{db->select_all('SELECT e.id, e.user_id, e.private, e.title, e.created_at FROM entries e JOIN relations r ON e.user_id = r.another WHERE r.one = ? ORDER BY e.id DESC limit 10')}) {
         my $owner = get_user($entry->{user_id});
         $entry->{account_name} = $owner->{account_name};
         $entry->{nick_name} = $owner->{nick_name};
         push @$entries_of_friends, $entry;
-        last if @$entries_of_friends+0 >= 10;
     }
 
     my $current_user = current_user();
