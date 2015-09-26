@@ -33,6 +33,10 @@ sub db {
     };
 }
 
+sub users {
+    state $users = +{};
+}
+
 sub redis {
     state $redis = Redis::Fast->new;
 }
@@ -101,7 +105,7 @@ sub current_user {
 
     return undef if (!session()->{user_id});
 
-    $user = db->select_row('SELECT id, account_name, nick_name, email FROM users WHERE id=?', session()->{user_id});
+    $user = users()->{session()->{user_id}};
     if (!$user) {
         session()->{user_id} = undef;
         abort_authentication_error();
@@ -111,7 +115,7 @@ sub current_user {
 
 sub get_user {
     my ($user_id) = @_;
-    my $user = db->select_row('SELECT * FROM users WHERE id = ?', $user_id);
+    my $user = users()->{$user_id};
     abort_content_not_found() if (!$user);
     return $user;
 }
@@ -529,6 +533,14 @@ get '/initialize' => sub {
     db->query("DELETE FROM footprints WHERE id > 500000");
     db->query("DELETE FROM entries WHERE id > 500000");
     db->query("DELETE FROM comments WHERE id > 1500000");
+
+    for my $user (@{db->select_all('SELECT id, account_name, nick_name, email FROM users')}) {
+        users()->{$user->{id}} = +{
+            account_name => $user->{account_name},
+            nick_name => $user->{nick_name},
+            email => $user->{email},
+        };
+    }
 
     if ($c->req->param('redis')) {
         initialize_fp_score_board();
