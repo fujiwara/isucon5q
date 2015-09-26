@@ -290,18 +290,18 @@ get '/' => [qw(set_global authenticated)] => sub {
 };
 
 sub get_footprints {
-    my ($owner_id, $limit) = @_;
+    my ($user_id, $limit) = @_;
 
-    my $lb = get_fp_leader_board($owner_id);
+    my $lb = get_fp_leader_board($user_id);
     my $members_and_scores = $lb->redis->zrevrange($lb->key, 0, $limit - 1, 'WITHSCORES');
 
     return [] unless @$members_and_scores;
 
-    my %users;
+    my %owners;
     my $footprints;
-    while (my ($user_id, $epoch) = splice @$members_and_scores, 0, 2) {
-        ($user_id, my $date) = split /:::/, $user_id;
-        $users{$user_id} = 1;
+    while (my ($owner_id, $epoch) = splice @$members_and_scores, 0, 2) {
+        ($owner_id, my $date) = split /:::/, $owner_id;
+        $owners{$owner_id} = 1;
 
         my $fp = {
             user_id  => $user_id,
@@ -312,16 +312,16 @@ sub get_footprints {
         push @$footprints, $fp;
     }
 
-    my @user_ids = sort {$a <=> $b} keys %users;
-    my %user_hash;
-    for my $user ( @{db->select_all('SELECT * FROM users WHERE id IN (?)', \@user_ids)} ) {
-        $user_hash{$user->{id}} = $user;
+    my @owner_ids = sort {$a <=> $b} keys %owners;
+    my %owner_hash;
+    for my $owner ( @{db->select_all('SELECT * FROM users WHERE id IN (?)', \@owner_ids)} ) {
+        $owner_hash{$owner->{id}} = $owner;
     }
 
     for my $fp (@$footprints) {
-        my $user = $user_hash{$fp->{user_id}};
-        $fp->{account_name} = $user->{account_name};
-        $fp->{nick_name}    = $user->{nick_name};
+        my $owner = $owner_hash{$fp->{owner_id}};
+        $fp->{account_name} = $owner->{account_name};
+        $fp->{nick_name}    = $owner->{nick_name};
     }
     $footprints;
 }
