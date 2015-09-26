@@ -213,10 +213,8 @@ SQL
     }
 
     my $entries_of_friends = [];
-    for my $entry (@{db->select_all('SELECT * FROM entries ORDER BY created_at DESC LIMIT 1000')}) {
+    for my $entry (@{db->select_all('SELECT id, user_id, private, title, created_at FROM entries ORDER BY id DESC LIMIT 1000')}) {
         next if (!is_friend($entry->{user_id}));
-        my ($title) = split(/\n/, $entry->{body});
-        $entry->{title} = $title;
         my $owner = get_user($entry->{user_id});
         $entry->{account_name} = $owner->{account_name};
         $entry->{nick_name} = $owner->{nick_name};
@@ -416,12 +414,12 @@ get '/diary/entry/:entry_id' => [qw(set_global authenticated)] => sub {
 
 post '/diary/entry' => [qw(set_global authenticated)] => sub {
     my ($self, $c) = @_;
-    my $query = 'INSERT INTO entries (user_id, private, body) VALUES (?,?,?)';
+    my $query = 'INSERT INTO entries (user_id, private, body, title) VALUES (?,?,?,?)';
     my $title = $c->req->param('title');
     my $content = $c->req->param('content');
     my $private = $c->req->param('private');
     my $body = ($title || "タイトルなし") . "\n" . $content;
-    db->query($query, current_user()->{id}, ($private ? '1' : '0'), $body);
+    db->query($query, current_user()->{id}, ($private ? '1' : '0'), $body, ($title || "タイトルなし"));
     redirect('/diary/entries/'.current_user()->{account_name});
 };
 
