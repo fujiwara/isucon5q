@@ -51,6 +51,10 @@ sub json {
     state $json = JSON::XS->new->utf8;
 }
 
+sub users {
+    state $users = +{};
+}
+
 my ($SELF, $C);
 sub session {
     $C->stash->{session};
@@ -101,18 +105,20 @@ sub current_user {
 
     return undef if (!session()->{user_id});
 
-    $user = json()->decode(redis()->get('user:' . session()->{user_id}));
+    $user = users()->{session()->{user_id}} || json()->decode(redis()->get('user:' . session()->{user_id}));
     if (!$user) {
         session()->{user_id} = undef;
         abort_authentication_error();
     }
+    users()->{session()->{user_id}} = $user;
     stash()->{user} = $user;
     return $user;
 }
 
 sub get_user {
     my ($user_id) = @_;
-    my $user = json()->decode(redis()->get('user:' . $user_id));
+    my $user = users()->{$user_id} || json()->decode(redis()->get('user:' . $user_id));
+    users()->{$user_id} = $user;
     abort_content_not_found() if (!$user);
     return $user;
 }
