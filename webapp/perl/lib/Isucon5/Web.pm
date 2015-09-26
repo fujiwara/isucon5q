@@ -523,8 +523,8 @@ sub initialize_fp_score_board {
         ORDER BY updated DESC
     ';
     for my $fp (@{db->select_all($query)}) {
-        my $lb = get_fp_leader_board($fp->{owner_id});
-        my $key = sprintf "%s:::%s", $fp->{user_id}, $fp->{date};
+        my $lb = get_fp_leader_board($fp->{user_id});
+        my $key = sprintf "%s:::%s", $fp->{owner_id}, $fp->{date};
         $db->set_score($key => str2time($fp->{updated}));
     }
 }
