@@ -1,11 +1,12 @@
 package Isucon5::Web;
+use 5.020;
 
-use strict;
 use warnings;
 use utf8;
 use Kossy;
 use DBIx::Sunny;
 use Encode;
+use Redis::Fast;
 
 my $db;
 sub db {
@@ -27,6 +28,10 @@ sub db {
             },
         );
     };
+}
+
+sub redis {
+    state $redis = Redis::Fast->new;
 }
 
 my ($SELF, $C);

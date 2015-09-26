@@ -6,3 +6,4 @@ requires "Starman";
 requires "Plack::Session";
 requires "Gazelle";
 requires "Server::Starter";
+requires "Redis::Fast";
