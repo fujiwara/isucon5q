@@ -141,10 +141,10 @@ state $today_str = do {
     $t;
 };
 sub mark_footprint {
-    my ($user_id) = @_;
-    if ($user_id != current_user()->{id}) {
-        my $lb = get_fp_leader_board(current_user()->{id});
-        my $key = $user_id . ':::' . $today_str;
+    my ($owner_id) = @_;
+    if ($owner_id != current_user()->{id}) {
+        my $lb = get_fp_leader_board($owner_id);
+        my $key = current_user()->{id} . ':::' . $today_str;
         $lb->set_score($key => time());
     }
 }
@@ -561,8 +561,8 @@ sub initialize_fp_score_board {
         ORDER BY updated DESC
     ';
     for my $fp (@{db->select_all($query)}) {
-        my $lb = get_fp_leader_board($fp->{user_id});
-        my $key = sprintf "%s:::%s", $fp->{owner_id}, $fp->{date};
+        my $lb = get_fp_leader_board($fp->{owner_id});
+        my $key = sprintf "%s:::%s", $fp->{user_id}, $fp->{date};
         $lb->set_score($key => str2time($fp->{updated}));
     }
 }
