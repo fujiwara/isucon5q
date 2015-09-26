@@ -208,7 +208,7 @@ get '/' => [qw(set_global authenticated)] => sub {
 
     my $comments_for_me = [
         map {
-            json()->decode($_)
+            json()->decode(Encode::decode_utf8($_))
         } redis()->lrange('comments_for_me:' . current_user()->{id}, 0, 9),
     ];
 
@@ -519,7 +519,7 @@ ORDER BY c.created_at DESC
 LIMIT 10
 SQL
         for my $comment (@{db->select_all($comments_for_me_query, $user_id)}) {
-            redis()->lpush($key, json()->encode($comment));
+            redis()->lpush($key, Encode::encode_utf8(json()->encode($comment)));
             redis()->ltrim($key, 0, 9);
         }
     }
