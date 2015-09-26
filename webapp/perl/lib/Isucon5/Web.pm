@@ -528,24 +528,26 @@ get '/initialize' => sub {
     db->query("DELETE FROM entries WHERE id > 500000");
     db->query("DELETE FROM comments WHERE id > 1500000");
 
-    initialize_fp_score_board();
-    # cache comments_for_me
-    for my $user_id (1 .. 5000) {
-        my $key = 'comments_for_me:' . $user_id;
-        redis()->del($key);
+    if ($c->req->param('redis')) {
+        initialize_fp_score_board();
+        # cache comments_for_me
+        for my $user_id (1 .. 5000) {
+            my $key = 'comments_for_me:' . $user_id;
+            redis()->del($key);
 
-        my $comments_for_me_query = <<SQL;
-SELECT c.entry_id AS entry_id, c.user_id AS user_id, c.comment AS comment, c.created_at AS created_at, u.account_name AS account_name, u.nick_name AS nick_name
-FROM comments c
-JOIN entries e ON c.entry_id = e.id
-JOIN users u ON c.user_id = u.id
-WHERE e.user_id = ?
-ORDER BY c.created_at DESC
-LIMIT 10
+            my $comments_for_me_query = <<SQL;
+                SELECT c.entry_id AS entry_id, c.user_id AS user_id, c.comment AS comment, c.created_at AS created_at, u.account_name AS account_name, u.nick_name AS nick_name
+                FROM comments c
+                JOIN entries e ON c.entry_id = e.id
+                JOIN users u ON c.user_id = u.id
+                WHERE e.user_id = ?
+                ORDER BY c.created_at DESC
+                LIMIT 10
 SQL
-        for my $comment (@{db->select_all($comments_for_me_query, $user_id)}) {
-            redis()->lpush($key, json()->encode($comment));
-            redis()->ltrim($key, 0, 9);
+            for my $comment (@{db->select_all($comments_for_me_query, $user_id)}) {
+                redis()->lpush($key, json()->encode($comment));
+                redis()->ltrim($key, 0, 9);
+            }
         }
     }
     1;
