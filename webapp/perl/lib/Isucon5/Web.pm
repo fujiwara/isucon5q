@@ -241,6 +241,7 @@ SQL
     ) {
         my $entry = db->select_row('SELECT id, user_id, private FROM entries WHERE id = ?',
             $comment->{entry_id});
+        $entry->{is_private} = ($entry->{private} == 1);
         my $entry_owner = get_user($entry->{user_id});
         $entry->{account_name} = $entry_owner->{account_name};
         $entry->{nick_name} = $entry_owner->{nick_name};
