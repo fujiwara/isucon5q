@@ -221,11 +221,19 @@ get '/' => [qw(set_global authenticated)] => sub {
 
     my $profile = db->select_row('SELECT * FROM profiles WHERE user_id = ?', current_user()->{id});
 
-    my $entries_query = 'SELECT id, user_id, private, title, created_at FROM entries WHERE user_id = ? ORDER BY created_at LIMIT 5';
     my $entries = [];
-    for my $entry (@{db->select_all($entries_query, current_user()->{id})}) {
-        $entry->{is_private} = ($entry->{private} == 1);
-        push @$entries, $entry;
+    {
+        my $my_entryes_key = 'my_entries:' . current_user();
+        if (my $cached_entries = redis()->get($my_entryes_key)) {
+            $entries = json()->decode($cached_entries);
+        } else {
+            my $entries_query = 'SELECT id, user_id, private, title, created_at FROM entries WHERE user_id = ? ORDER BY created_at LIMIT 5';
+            for my $entry (@{db->select_all($entries_query, current_user()->{id})}) {
+                $entry->{is_private} = ($entry->{private} == 1);
+                push @$entries, $entry;
+            }
+            redis()->set($my_entryes_key, json()->encode($entries));
+        }
     }
 
     my $comments_for_me = [
