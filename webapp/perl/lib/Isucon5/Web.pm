@@ -238,6 +238,7 @@ get '/' => [qw(set_global authenticated)] => sub {
 
     my $current_user = current_user();
     my $comments_of_friends = [];
+    my %entry_id;
     for my $comment (@{ db->select_all('
             SELECT c.*
             FROM
@@ -251,17 +252,31 @@ get '/' => [qw(set_global authenticated)] => sub {
             limit 10
         ', $current_user->{id} ) }
     ) {
-        my $entry = db->select_row('SELECT id, user_id, private FROM entries WHERE id = ?',
-            $comment->{entry_id});
-        $entry->{is_private} = ($entry->{private} == 1);
-        my $entry_owner = get_user($entry->{user_id});
-        $entry->{account_name} = $entry_owner->{account_name};
-        $entry->{nick_name} = $entry_owner->{nick_name};
-        $comment->{entry} = $entry;
-        my $comment_owner = get_user($comment->{user_id});
-        $comment->{account_name} = $comment_owner->{account_name};
-        $comment->{nick_name} = $comment_owner->{nick_name};
+        $entry_id{ $comment->{entry_id} } = 1;
         push @$comments_of_friends, $comment;
+    }
+
+    if (@$comments_of_friends) {
+        my @entry_ids = sort {$a <=> $b} keys %entry_id;
+        my %entry_map;
+        for my $entry (
+            @{db->select_all('SELECT id, user_id, private FROM entries WHERE id IN (?)', \@entry_ids)}
+        ) {
+            $entry_map{ $entry->{id} } = $entry;
+        }
+
+        for my $comment (@$comments_of_friends) {
+            my $entry = $entry_map{ $comment->{entry_id} };
+
+            $entry->{is_private} = ($entry->{private} == 1);
+            my $entry_owner = get_user($entry->{user_id});
+            $entry->{account_name} = $entry_owner->{account_name};
+            $entry->{nick_name} = $entry_owner->{nick_name};
+            $comment->{entry} = $entry;
+            my $comment_owner = get_user($comment->{user_id});
+            $comment->{account_name} = $comment_owner->{account_name};
+            $comment->{nick_name} = $comment_owner->{nick_name};
+        }
     }
 
     my $friends_query = 'SELECT * FROM relations WHERE one = ? ORDER BY id DESC';
