@@ -209,7 +209,7 @@ get '/' => [qw(set_global authenticated)] => sub {
     my $comments_for_me = [
         map {
             json()->decode($_)
-        } redis()->lrange('comments_for_me:' . '2', 0, 9),
+        } redis()->lrange('comments_for_me:' . current_user()->{id}, 0, 9),
     ];
 
     my $entries_of_friends = [];
