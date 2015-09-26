@@ -335,8 +335,12 @@ get '/profile/:account_name' => [qw(set_global authenticated)] => sub {
     my $owner = user_from_account($account_name);
     my $prof = db->select_row('SELECT * FROM profiles WHERE user_id = ?', $owner->{id});
     $prof = {} if (!$prof);
+
+    my $is_friend = is_friend($owner->{id});
+    my $permitted = $is_friend || (current_user()->{id} == $owner->{id});
+
     my $query;
-    if (permitted($owner->{id})) {
+    if ($permitted) {
         $query = 'SELECT * FROM entries WHERE user_id = ? ORDER BY created_at LIMIT 5';
     } else {
         $query = 'SELECT * FROM entries WHERE user_id = ? AND private=0 ORDER BY created_at LIMIT 5';
@@ -354,8 +358,8 @@ get '/profile/:account_name' => [qw(set_global authenticated)] => sub {
         owner => $owner,
         profile => $prof,
         entries => $entries,
-        private => permitted($owner->{id}),
-        is_friend => is_friend($owner->{id}),
+        private => $permitted,
+        is_friend => $is_friend,
         current_user => current_user(),
         prefectures => prefectures(),
     };
