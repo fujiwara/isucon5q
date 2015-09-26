@@ -37,7 +37,7 @@ sub redis {
 }
 
 sub json {
-    state $json = JSON::XS->new;
+    state $json = JSON::XS->new->utf8;
 }
 
 my ($SELF, $C);
