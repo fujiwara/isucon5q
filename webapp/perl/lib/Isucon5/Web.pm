@@ -140,11 +140,13 @@ state $today_str = do {
     my ($t, undef) = split(/ /, time2iso());
     $t;
 };
+# owner: 足跡つけた人, user: あしあともらった人
 sub mark_footprint {
     my ($user_id) = @_;
-    if ($user_id != current_user()->{id}) {
-        my $lb = get_fp_leader_board(current_user()->{id});
-        my $key = $user_id . ':::' . $today_str;
+    my $owner_id = current_user()->{id};
+    if ($owner_id != $user_id) {
+        my $lb = get_fp_leader_board($user_id);
+        my $key = $owner_id . ':::' . $today_str;
         $lb->set_score($key => time());
     }
 }
