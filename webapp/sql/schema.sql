@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS entries (
   `user_id` int NOT NULL,
   `private` tinyint NOT NULL,
   `body` text,
+  `title` varchar(191) NOT NULL DEFAULT '',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY `user_id` (`user_id`,`created_at`),
   KEY `created_at` (`created_at`)
