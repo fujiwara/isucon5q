@@ -586,7 +586,12 @@ SQL
             };
             redis()->set('user:' . $user->{id}, json()->encode($data));
         }
+    } else {
+        redis()->flushall();
+        system("redis-cli --pipe < /home/isucon/appendonly.aof")
+            if -e "/home/isucon/appendonly.aof";
     }
+
     1;
 };
 
