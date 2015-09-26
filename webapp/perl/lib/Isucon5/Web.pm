@@ -141,9 +141,6 @@ sub mark_footprint {
         my $lb = get_fp_leader_board(current_user()->{id});
         my $key = $user_id . ':::' . $today_str;
         $lb->set_score($key => time());
-
-        my $query = 'INSERT INTO footprints (user_id,owner_id) VALUES (?,?)';
-        db->query($query, $user_id, current_user()->{id});
     }
 }
 
