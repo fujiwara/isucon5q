@@ -9,6 +9,8 @@ use Encode;
 use Redis::Fast;
 use Redis::LeaderBoard;
 use HTTP::Date qw/str2time time2iso/;
+use JSON::XS;
+use Time::Piece;
 
 my $db;
 sub db {
@@ -44,6 +46,10 @@ sub get_fp_leader_board {
         key   => 'fp_leader_board:' . $user_id,
         order => 'desc',
     );
+}
+
+sub json {
+    state $json = JSON::XS->new->utf8;
 }
 
 my ($SELF, $C);
@@ -207,32 +213,18 @@ get '/' => [qw(set_global authenticated)] => sub {
 
     my $profile = db->select_row('SELECT * FROM profiles WHERE user_id = ?', current_user()->{id});
 
-    my $entries_query = 'SELECT * FROM entries WHERE user_id = ? ORDER BY created_at LIMIT 5';
+    my $entries_query = 'SELECT id, user_id, private, title, created_at FROM entries WHERE user_id = ? ORDER BY created_at LIMIT 5';
     my $entries = [];
     for my $entry (@{db->select_all($entries_query, current_user()->{id})}) {
         $entry->{is_private} = ($entry->{private} == 1);
-        my ($title, $content) = split(/\n/, $entry->{body}, 2);
-        $entry->{title} = $title;
-        $entry->{content} = $content;
         push @$entries, $entry;
     }
 
-    my $comments_for_me_query = <<SQL;
-SELECT c.id AS id, c.entry_id AS entry_id, c.user_id AS user_id, c.comment AS comment, c.created_at AS created_at
-FROM comments c
-JOIN entries e ON c.entry_id = e.id
-WHERE e.user_id = ?
-ORDER BY c.created_at DESC
-LIMIT 10
-SQL
-    my $comments_for_me = [];
-    my $comments = [];
-    for my $comment (@{db->select_all($comments_for_me_query, current_user()->{id})}) {
-        my $comment_user = get_user($comment->{user_id});
-        $comment->{account_name} = $comment_user->{account_name};
-        $comment->{nick_name} = $comment_user->{nick_name};
-        push @$comments_for_me, $comment;
-    }
+    my $comments_for_me = [
+        map {
+            json()->decode($_)
+        } redis()->lrange('comments_for_me:' . current_user()->{id}, 0, 9),
+    ];
 
     my $entries_of_friends = [];
     for my $entry (@{db->select_all('SELECT e.id, e.user_id, e.private, e.title, e.created_at FROM entries e JOIN relations r ON e.user_id = r.another WHERE r.one = ? ORDER BY e.id DESC limit 10')}) {
@@ -477,6 +469,20 @@ post '/diary/comment/:entry_id' => [qw(set_global authenticated)] => sub {
     my $query = 'INSERT INTO comments (entry_id, user_id, comment) VALUES (?,?,?)';
     my $comment = $c->req->param('comment');
     db->query($query, $entry->{id}, current_user()->{id}, $comment);
+    # update comments_for_me cache
+    my $redis_key = 'comments_for_me:' . $entry->{user_id};
+    my $now = Time::Piece->localtime;
+    my $data = +{
+        entry_id => $entry->{id},
+        user_id => current_user()->{id},
+        comment => $comment,
+        created_at => join(' ', $now->ymd, $now->hms),
+        account_name => current_user()->{account_name},
+        nick_name => current_user()->{nick_name},
+    };
+    redis()->lpush($redis_key, json()->encode($data));
+    redis()->ltrim($redis_key, 0, 9);
+
     redirect('/diary/entry/'.$entry->{id});
 };
 
@@ -523,6 +529,25 @@ get '/initialize' => sub {
     db->query("DELETE FROM comments WHERE id > 1500000");
 
     initialize_fp_score_board();
+    # cache comments_for_me
+    for my $user_id (1 .. 5000) {
+        my $key = 'comments_for_me:' . $user_id;
+        redis()->del($key);
+
+        my $comments_for_me_query = <<SQL;
+SELECT c.entry_id AS entry_id, c.user_id AS user_id, c.comment AS comment, c.created_at AS created_at, u.account_name AS account_name, u.nick_name AS nick_name
+FROM comments c
+JOIN entries e ON c.entry_id = e.id
+JOIN users u ON c.user_id = u.id
+WHERE e.user_id = ?
+ORDER BY c.created_at DESC
+LIMIT 10
+SQL
+        for my $comment (@{db->select_all($comments_for_me_query, $user_id)}) {
+            redis()->lpush($key, json()->encode($comment));
+            redis()->ltrim($key, 0, 9);
+        }
+    }
     1;
 };
 
