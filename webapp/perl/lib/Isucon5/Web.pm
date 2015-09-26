@@ -8,7 +8,7 @@ use DBIx::Sunny;
 use Encode;
 use Redis::Fast;
 use Redis::LeaderBoard;
-use HTTP::Date qw/str2time/;
+use HTTP::Date qw/str2time time2iso/;
 
 my $db;
 sub db {
@@ -131,9 +131,17 @@ sub is_friend_account {
     is_friend(user_from_account($account_name)->{id});
 }
 
+state $today_str = do {
+    my ($t, undef) = split(/ /, time2iso());
+    $t;
+};
 sub mark_footprint {
     my ($user_id) = @_;
     if ($user_id != current_user()->{id}) {
+        my $lb = get_fp_leader_board(current_user()->{id});
+        my $key = $user_id . ':::' . $today_str;
+        $lb->set_score($key => time());
+
         my $query = 'INSERT INTO footprints (user_id,owner_id) VALUES (?,?)';
         db->query($query, $user_id, current_user()->{id});
     }
