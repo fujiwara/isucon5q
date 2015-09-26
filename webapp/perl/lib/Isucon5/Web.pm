@@ -234,7 +234,7 @@ SQL
               relations r
              ON c.user_id = r.another
             WHERE
-             r.one = 10
+             r.one = ?
             ORDER BY c.id DESC
             limit 10
         ', $current_user->{id} ) }
