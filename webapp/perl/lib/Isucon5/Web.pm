@@ -106,6 +106,7 @@ sub current_user {
         session()->{user_id} = undef;
         abort_authentication_error();
     }
+    stash()->{user} = $user;
     return $user;
 }
 
@@ -553,6 +554,7 @@ SQL
 
         for my $user (@{db->select_all('SELECT id, account_name, nick_name, email FROM users')}) {
             my $data = +{
+                id => $user->{id},
                 account_name => $user->{account_name},
                 nick_name => $user->{nick_name},
                 email => $user->{email},
