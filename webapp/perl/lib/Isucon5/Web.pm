@@ -140,11 +140,13 @@ state $today_str = do {
     my ($t, undef) = split(/ /, time2iso());
     $t;
 };
+# owner: 足跡つけた人, user: あしあともらった人
 sub mark_footprint {
-    my ($owner_id) = @_;
-    if ($owner_id != current_user()->{id}) {
-        my $lb = get_fp_leader_board($owner_id);
-        my $key = current_user()->{id} . ':::' . $today_str;
+    my ($user_id) = @_;
+    my $owner_id = current_user()->{id};
+    if ($owner_id != $user_id) {
+        my $lb = get_fp_leader_board($user_id);
+        my $key = $owner_id . ':::' . $today_str;
         $lb->set_score($key => time());
     }
 }
@@ -561,8 +563,8 @@ sub initialize_fp_score_board {
         ORDER BY updated DESC
     ';
     for my $fp (@{db->select_all($query)}) {
-        my $lb = get_fp_leader_board($fp->{owner_id});
-        my $key = sprintf "%s:::%s", $fp->{user_id}, $fp->{date};
+        my $lb = get_fp_leader_board($fp->{user_id});
+        my $key = sprintf "%s:::%s", $fp->{owner_id}, $fp->{date};
         $lb->set_score($key => str2time($fp->{updated}));
     }
 }
