@@ -7,4 +7,6 @@ requires "Plack::Session";
 requires "Gazelle";
 requires "Server::Starter";
 requires "Redis::Fast";
+requires "Redis::LeaderBoard";
+requires "HTTP::Date";
 requires "JSON::XS";

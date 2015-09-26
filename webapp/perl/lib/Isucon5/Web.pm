@@ -7,12 +7,13 @@ use Kossy;
 use DBIx::Sunny;
 use Encode;
 use Redis::Fast;
+use Redis::LeaderBoard;
+use HTTP::Date qw/str2time time2iso/;
 use JSON::XS;
 use Time::Piece;
 
-my $db;
 sub db {
-    $db ||= do {
+    state $db = do {
         my %db = (
             host => $ENV{ISUCON5_DB_HOST} || 'localhost',
             port => $ENV{ISUCON5_DB_PORT} || 3306,
@@ -34,6 +35,16 @@ sub db {
 
 sub redis {
     state $redis = Redis::Fast->new;
+}
+
+sub get_fp_leader_board {
+    my $user_id = shift;
+
+    Redis::LeaderBoard->new(
+        redis => redis(),
+        key   => 'fp_leader_board:' . $user_id,
+        order => 'desc',
+    );
 }
 
 sub json {
@@ -125,11 +136,16 @@ sub is_friend_account {
     is_friend(user_from_account($account_name)->{id});
 }
 
+state $today_str = do {
+    my ($t, undef) = split(/ /, time2iso());
+    $t;
+};
 sub mark_footprint {
     my ($user_id) = @_;
     if ($user_id != current_user()->{id}) {
-        my $query = 'INSERT INTO footprints (user_id,owner_id) VALUES (?,?)';
-        db->query($query, $user_id, current_user()->{id});
+        my $lb = get_fp_leader_board(current_user()->{id});
+        my $key = $user_id . ':::' . $today_str;
+        $lb->set_score($key => time());
     }
 }
 
@@ -258,21 +274,7 @@ get '/' => [qw(set_global authenticated)] => sub {
         };
     }
 
-    my $query = <<SQL;
-SELECT user_id, owner_id, DATE(created_at) AS date, MAX(created_at) as updated
-FROM footprints
-WHERE user_id = ?
-GROUP BY user_id, owner_id, DATE(created_at)
-ORDER BY updated DESC
-LIMIT 10
-SQL
-    my $footprints = [];
-    for my $fp (@{db->select_all($query, current_user()->{id})}) {
-        my $owner = get_user($fp->{owner_id});
-        $fp->{account_name} = $owner->{account_name};
-        $fp->{nick_name} = $owner->{nick_name};
-        push @$footprints, $fp;
-    }
+    my $footprints = get_footprints(current_user()->{id}, 10);
 
     my $locals = {
         'user' => current_user(),
@@ -286,6 +288,43 @@ SQL
     };
     $c->render('index.tx', $locals);
 };
+
+sub get_footprints {
+    my ($user_id, $limit) = @_;
+
+    my $lb = get_fp_leader_board($user_id);
+    my $members_and_scores = $lb->redis->zrevrange($lb->key, 0, $limit - 1, 'WITHSCORES');
+
+    return [] unless @$members_and_scores;
+
+    my %owners;
+    my $footprints;
+    while (my ($owner_id, $epoch) = splice @$members_and_scores, 0, 2) {
+        ($owner_id, my $date) = split /:::/, $owner_id;
+        $owners{$owner_id} = 1;
+
+        my $fp = {
+            user_id  => $user_id,
+            owner_id => $owner_id,
+            date     => $date,
+            updated  => time2iso($epoch),
+        };
+        push @$footprints, $fp;
+    }
+
+    my @owner_ids = sort {$a <=> $b} keys %owners;
+    my %owner_hash;
+    for my $owner ( @{db->select_all('SELECT * FROM users WHERE id IN (?)', \@owner_ids)} ) {
+        $owner_hash{$owner->{id}} = $owner;
+    }
+
+    for my $fp (@$footprints) {
+        my $owner = $owner_hash{$fp->{owner_id}};
+        $fp->{account_name} = $owner->{account_name};
+        $fp->{nick_name}    = $owner->{nick_name};
+    }
+    $footprints;
+}
 
 get '/profile/:account_name' => [qw(set_global authenticated)] => sub {
     my ($self, $c) = @_;
@@ -448,21 +487,8 @@ post '/diary/comment/:entry_id' => [qw(set_global authenticated)] => sub {
 
 get '/footprints' => [qw(set_global authenticated)] => sub {
     my ($self, $c) = @_;
-    my $query = <<SQL;
-SELECT user_id, owner_id, DATE(created_at) AS date, MAX(created_at) as updated
-FROM footprints
-WHERE user_id = ?
-GROUP BY user_id, owner_id, DATE(created_at)
-ORDER BY updated DESC
-LIMIT 50
-SQL
-    my $footprints = [];
-    for my $fp (@{db->select_all($query, current_user()->{id})}) {
-        my $owner = get_user($fp->{owner_id});
-        $fp->{account_name} = $owner->{account_name};
-        $fp->{nick_name} = $owner->{nick_name};
-        push @$footprints, $fp;
-    }
+
+    my $footprints = get_footprints(current_user()->{id}, 50);
     $c->render('footprints.tx', { footprints => $footprints });
 };
 
@@ -501,26 +527,44 @@ get '/initialize' => sub {
     db->query("DELETE FROM entries WHERE id > 500000");
     db->query("DELETE FROM comments WHERE id > 1500000");
 
-    # cache comments_for_me
-    for my $user_id (1 .. 5000) {
-        my $key = 'comments_for_me:' . $user_id;
-        redis()->del($key);
+    if ($c->req->param('redis')) {
+        initialize_fp_score_board();
+        # cache comments_for_me
+        for my $user_id (1 .. 5000) {
+            my $key = 'comments_for_me:' . $user_id;
+            redis()->del($key);
 
-        my $comments_for_me_query = <<SQL;
-SELECT c.entry_id AS entry_id, c.user_id AS user_id, c.comment AS comment, c.created_at AS created_at, u.account_name AS account_name, u.nick_name AS nick_name
-FROM comments c
-JOIN entries e ON c.entry_id = e.id
-JOIN users u ON c.user_id = u.id
-WHERE e.user_id = ?
-ORDER BY c.created_at DESC
-LIMIT 10
+            my $comments_for_me_query = <<SQL;
+                SELECT c.entry_id AS entry_id, c.user_id AS user_id, c.comment AS comment, c.created_at AS created_at, u.account_name AS account_name, u.nick_name AS nick_name
+                FROM comments c
+                JOIN entries e ON c.entry_id = e.id
+                JOIN users u ON c.user_id = u.id
+                WHERE e.user_id = ?
+                ORDER BY c.created_at DESC
+                LIMIT 10
 SQL
-        for my $comment (@{db->select_all($comments_for_me_query, $user_id)}) {
-            redis()->lpush($key, json()->encode($comment));
-            redis()->ltrim($key, 0, 9);
+            for my $comment (@{db->select_all($comments_for_me_query, $user_id)}) {
+                redis()->lpush($key, json()->encode($comment));
+                redis()->ltrim($key, 0, 9);
+            }
         }
     }
     1;
 };
+
+sub initialize_fp_score_board {
+    my $query = '
+        SELECT user_id, owner_id, DATE(created_at) AS date, MAX(created_at) as updated
+        FROM footprints
+        WHERE footprints.id <= 500000
+        GROUP BY user_id, owner_id, DATE(created_at)
+        ORDER BY updated DESC
+    ';
+    for my $fp (@{db->select_all($query)}) {
+        my $lb = get_fp_leader_board($fp->{user_id});
+        my $key = sprintf "%s:::%s", $fp->{owner_id}, $fp->{date};
+        $lb->set_score($key => str2time($fp->{updated}));
+    }
+}
 
 1;
