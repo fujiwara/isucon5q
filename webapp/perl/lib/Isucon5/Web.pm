@@ -224,12 +224,24 @@ SQL
         last if @$entries_of_friends+0 >= 10;
     }
 
+    my $current_user = current_user();
     my $comments_of_friends = [];
-    for my $comment (@{db->select_all('SELECT * FROM comments ORDER BY created_at DESC LIMIT 1000')}) {
-        next if (!is_friend($comment->{user_id}));
-        my $entry = db->select_row('SELECT * FROM entries WHERE id = ?', $comment->{entry_id});
+    for my $comment (@{ db->select_all('
+            SELECT c.*
+            FROM
+              comments c
+             JOIN
+              relations r
+             ON c.user_id = r.another
+            WHERE
+             r.one = ?
+            ORDER BY c.id DESC
+            limit 10
+        ', $current_user->{id} ) }
+    ) {
+        my $entry = db->select_row('SELECT id, user_id, private FROM entries WHERE id = ?',
+            $comment->{entry_id});
         $entry->{is_private} = ($entry->{private} == 1);
-        next if ($entry->{is_private} && !permitted($entry->{user_id}));
         my $entry_owner = get_user($entry->{user_id});
         $entry->{account_name} = $entry_owner->{account_name};
         $entry->{nick_name} = $entry_owner->{nick_name};
@@ -238,13 +250,12 @@ SQL
         $comment->{account_name} = $comment_owner->{account_name};
         $comment->{nick_name} = $comment_owner->{nick_name};
         push @$comments_of_friends, $comment;
-        last if @$comments_of_friends+0 >= 10;
     }
 
     my $friends_query = 'SELECT * FROM relations WHERE one = ? OR another = ? ORDER BY created_at DESC';
     my %friends = ();
     my $friends = [];
-    for my $rel (@{db->select_all($friends_query, current_user()->{id}, current_user()->{id})}) {
+    for my $rel (@{db->select_all($friends_query, $current_user->{id}, $current_user->{id})}) {
         my $key = ($rel->{one} == current_user()->{id} ? 'another' : 'one');
         $friends{$rel->{$key}} ||= do {
             my $friend = get_user($rel->{$key});
