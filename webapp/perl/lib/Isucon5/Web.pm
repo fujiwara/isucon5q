@@ -304,21 +304,36 @@ SQL
 sub get_footprints {
     my ($user_id, $limit) = @_;
 
-    my $query = <<SQL;
-SELECT user_id, owner_id, DATE(created_at) AS date, MAX(created_at) as updated
-FROM footprints
-WHERE user_id = ?
-GROUP BY user_id, owner_id, DATE(created_at)
-ORDER BY updated DESC
-LIMIT ?
-SQL
+    my $lb = get_fp_leader_board($user_id);
+    my $members_and_scores = $lb->redis->zrevrange($lb->key, 0, $limit - 1, 'WITHSCORES');
 
-    my $footprints = [];
-    for my $fp (@{db->select_all($query, $user_id, $limit)}) {
-        my $owner = get_user($fp->{owner_id});
-        $fp->{account_name} = $owner->{account_name};
-        $fp->{nick_name} = $owner->{nick_name};
+    return [] unless @$members_and_scores;
+
+    my %owners;
+    my $footprints;
+    while (my ($owner_id, $epoch) = splice @$members_and_scores, 0, 2) {
+        ($owner_id, my $date) = split /:::/, $owner_id;
+        $owners{$owner_id} = 1;
+
+        my $fp = {
+            user_id  => $user_id,
+            owner_id => $owner_id,
+            date     => $date,
+            updated  => time2iso($epoch),
+        };
         push @$footprints, $fp;
+    }
+
+    my @owner_ids = sort {$a <=> $b} keys %owners;
+    my %owner_hash;
+    for my $owner ( @{db->select_all('SELECT * FROM users WHERE id IN (?)', \@owner_ids)} ) {
+        $owner_hash{$owner->{id}} = $owner;
+    }
+
+    for my $fp (@$footprints) {
+        my $owner = $owner_hash{$fp->{owner_id}};
+        $fp->{account_name} = $owner->{account_name};
+        $fp->{nick_name}    = $owner->{nick_name};
     }
     $footprints;
 }
