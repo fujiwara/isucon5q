@@ -286,21 +286,7 @@ SQL
         };
     }
 
-    my $query = <<SQL;
-SELECT user_id, owner_id, DATE(created_at) AS date, MAX(created_at) as updated
-FROM footprints
-WHERE user_id = ?
-GROUP BY user_id, owner_id, DATE(created_at)
-ORDER BY updated DESC
-LIMIT 10
-SQL
-    my $footprints = [];
-    for my $fp (@{db->select_all($query, current_user()->{id})}) {
-        my $owner = get_user($fp->{owner_id});
-        $fp->{account_name} = $owner->{account_name};
-        $fp->{nick_name} = $owner->{nick_name};
-        push @$footprints, $fp;
-    }
+    my $footprints = get_footprints(current_user()->{id}, 10);
 
     my $locals = {
         'user' => current_user(),
@@ -314,6 +300,28 @@ SQL
     };
     $c->render('index.tx', $locals);
 };
+
+sub get_footprints {
+    my ($user_id, $limit) = @_;
+
+    my $query = <<SQL;
+SELECT user_id, owner_id, DATE(created_at) AS date, MAX(created_at) as updated
+FROM footprints
+WHERE user_id = ?
+GROUP BY user_id, owner_id, DATE(created_at)
+ORDER BY updated DESC
+LIMIT ?
+SQL
+
+    my $footprints = [];
+    for my $fp (@{db->select_all($query, $user_id, $limit)}) {
+        my $owner = get_user($fp->{owner_id});
+        $fp->{account_name} = $owner->{account_name};
+        $fp->{nick_name} = $owner->{nick_name};
+        push @$footprints, $fp;
+    }
+    $footprints;
+}
 
 get '/profile/:account_name' => [qw(set_global authenticated)] => sub {
     my ($self, $c) = @_;
@@ -462,21 +470,8 @@ post '/diary/comment/:entry_id' => [qw(set_global authenticated)] => sub {
 
 get '/footprints' => [qw(set_global authenticated)] => sub {
     my ($self, $c) = @_;
-    my $query = <<SQL;
-SELECT user_id, owner_id, DATE(created_at) AS date, MAX(created_at) as updated
-FROM footprints
-WHERE user_id = ?
-GROUP BY user_id, owner_id, DATE(created_at)
-ORDER BY updated DESC
-LIMIT 50
-SQL
-    my $footprints = [];
-    for my $fp (@{db->select_all($query, current_user()->{id})}) {
-        my $owner = get_user($fp->{owner_id});
-        $fp->{account_name} = $owner->{account_name};
-        $fp->{nick_name} = $owner->{nick_name};
-        push @$footprints, $fp;
-    }
+
+    my $footprints = get_footprints(current_user()->{id}, 50);
     $c->render('footprints.tx', { footprints => $footprints });
 };
 
