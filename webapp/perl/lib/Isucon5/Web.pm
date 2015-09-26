@@ -7,6 +7,8 @@ use Kossy;
 use DBIx::Sunny;
 use Encode;
 use Redis::Fast;
+use Redis::LeaderBoard;
+use HTTP::Date qw/str2time/;
 
 my $db;
 sub db {
@@ -32,6 +34,16 @@ sub db {
 
 sub redis {
     state $redis = Redis::Fast->new;
+}
+
+sub get_fp_leader_board {
+    my $user_id = shift;
+
+    Redis::LeaderBoard->new(
+        redis => redis(),
+        key   => 'fp_leader_board:' . $user_id,
+        order => 'desc',
+    );
 }
 
 my ($SELF, $C);
@@ -494,6 +506,24 @@ get '/initialize' => sub {
     db->query("DELETE FROM footprints WHERE id > 500000");
     db->query("DELETE FROM entries WHERE id > 500000");
     db->query("DELETE FROM comments WHERE id > 1500000");
+
+    initialize_fp_score_board();
+    1;
 };
+
+sub initialize_fp_score_board {
+    my $query = '
+        SELECT user_id, owner_id, DATE(created_at) AS date, MAX(created_at) as updated
+        FROM footprints
+        WHERE footprints.id <= 500000
+        GROUP BY user_id, owner_id, DATE(created_at)
+        ORDER BY updated DESC
+    ';
+    for my $fp (@{db->select_all($query)}) {
+        my $lb = get_fp_leader_board($fp->{owner_id});
+        my $key = sprintf "%s:::%s", $fp->{user_id}, $fp->{date};
+        $db->set_score($key => str2time($fp->{updated}));
+    }
+}
 
 1;
