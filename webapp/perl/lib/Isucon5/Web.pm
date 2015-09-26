@@ -33,7 +33,7 @@ sub db {
 }
 
 sub redis {
-    state $redis = Redis::Fast->new;
+    state $redis = Redis::Fast->new(encoding => undef);
 }
 
 sub json {
