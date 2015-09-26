@@ -12,9 +12,8 @@ use HTTP::Date qw/str2time time2iso/;
 use JSON::XS;
 use Time::Piece;
 
-my $db;
 sub db {
-    $db ||= do {
+    state $db = do {
         my %db = (
             host => $ENV{ISUCON5_DB_HOST} || 'localhost',
             port => $ENV{ISUCON5_DB_PORT} || 3306,
@@ -564,7 +563,7 @@ sub initialize_fp_score_board {
     for my $fp (@{db->select_all($query)}) {
         my $lb = get_fp_leader_board($fp->{user_id});
         my $key = sprintf "%s:::%s", $fp->{owner_id}, $fp->{date};
-        $db->set_score($key => str2time($fp->{updated}));
+        $lb->set_score($key => str2time($fp->{updated}));
     }
 }
 
