@@ -182,12 +182,13 @@ get '/logout' => [qw(set_global)] => sub {
 
 get '/' => [qw(set_global authenticated)] => sub {
     my ($self, $c) = @_;
+    my $current_user = current_user();
 
-    my $profile = db->select_row('SELECT * FROM profiles WHERE user_id = ?', current_user()->{id});
+    my $profile = db->select_row('SELECT * FROM profiles WHERE user_id = ?', $current_user->{id});
 
     my $entries_query = 'SELECT * FROM entries WHERE user_id = ? ORDER BY created_at LIMIT 5';
     my $entries = [];
-    for my $entry (@{db->select_all($entries_query, current_user()->{id})}) {
+    for my $entry (@{db->select_all($entries_query, $current_user->{id})}) {
         $entry->{is_private} = ($entry->{private} == 1);
         my ($title, $content) = split(/\n/, $entry->{body}, 2);
         $entry->{title} = $title;
@@ -205,7 +206,7 @@ LIMIT 10
 SQL
     my $comments_for_me = [];
     my $comments = [];
-    for my $comment (@{db->select_all($comments_for_me_query, current_user()->{id})}) {
+    for my $comment (@{db->select_all($comments_for_me_query, $current_user->{id})}) {
         my $comment_user = get_user($comment->{user_id});
         $comment->{account_name} = $comment_user->{account_name};
         $comment->{nick_name} = $comment_user->{nick_name};
@@ -220,7 +221,6 @@ SQL
         push @$entries_of_friends, $entry;
     }
 
-    my $current_user = current_user();
     my $comments_of_friends = [];
     for my $comment (@{ db->select_all('
             SELECT c.*
